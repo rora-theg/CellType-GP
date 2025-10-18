@@ -17,116 +17,33 @@ from compute_truth_score import compute_truth_score
 # -------------------------------------------------------------------------
 # 2. 定义所有 17 个 Cluster 的基因集
 # -------------------------------------------------------------------------
-Stromal_genes = [
-    'MUC6', 'PIM1', 'UCP1', 'CSF3', 'GJB2', 'TCEAL7', 'CLIC6', 'LEP', 'DPT', 'SFRP4',
-    'LRRC15', 'LUM', 'POSTN', 'MMP2', 'CCDC80', 'FBLN1', 'PDGFRA', 'TAC1', 'ADH1B', 'CXCL12',
-    'ADIPOQ', 'IGF1', 'LPL', 'MEDAG', 'CRISPLD2', 'PCOLCE', 'TIMP4', 'AKR1C1'
-]
-
-Prolif_Invasive_Tumor_genes = [
-    'ANKRD28', 'TUBA4A', 'STC1', 'RTKN2', 'PCLAF', 'CENPF', 'MKI67', 'TOP2A', 'DNAAF1', 'RHOH',
-    'TOMM7', 'NPM3', 'KARS', 'THAP2', 'C2orf42', 'HMGA1', 'PTRHD1', 'MDM2', 'POLR2J3', 'CDH1',
-    'ELF3', 'MYO5B', 'USP53', 'KRT7', 'OCIAD2', 'CCND1', 'CCDC6', 'CTTN', 'FASN', 'SQLE',
-    'EPCAM', 'AR', 'FOXA1', 'ERBB2', 'SCD', 'ANKRD30A', 'MLPH', 'SH3YL1', 'SRPK1', 'NARS',
-    'ZNF562', 'TMEM147', 'LARS', 'TRAF4', 'EIF4EBP1', 'ENAH', 'DAPK3', 'REXO4', 'SLC4A1', 'LAG3'
-]
-
-Perivascular_Like_genes = [
-    'AHSP', 'S100A4', 'ZEB2', 'PDGFRB', 'FBLIM1', 'LGALSL', 'SSTR2', 'AVPR1A', 'NDUFA4L2', 'ANKRD29',
-    'FSTL3', 'ACTA2', 'MYH11', 'FOXC2'
-]
-
-Myoepi_KRT15_genes = [
-    'RORC', 'SLC5A6', 'ADAM9', 'TACSTD2', 'JUP', 'CXCL16', 'TRIB1', 'SVIL', 'KRT16', 'KRT6B',
-    'C5orf46', 'PTN', 'DSC2', 'TUBB2B', 'SLC25A37', 'CXCL5', 'KRT15', 'SFRP1', 'MYBPC1', 'S100A8',
-    'ALDH1A3', 'OPRPN', 'ELF5', 'KRT23', 'PIGR', 'CDC42EP1', 'SCGB2A1', 'NCAM1'
-]
-
-Myoepi_ACTA2_genes = [
-    'DMKN', 'DSP', 'ACTG2', 'DST', 'OXTR', 'CLCA2', 'KRT14', 'KRT5', 'MMP1', 'RUNX1',
-    'EGFR', 'PGR', 'MYLK'
-]
-
-Mast_Cells_genes = [
-    'CD69', 'FAM107B', 'HDC', 'KIT', 'LIF', 'TPSAB1', 'CPA3', 'CTSG', 'CYP1A1', 'PDE4A'
-]
-
-Macrophages_2_genes = [
-    'MPO', 'SMAP2', 'FCER1G', 'AIF1', 'CD68', 'TYROBP', 'ITGAM', 'CCL8', 'PDK4', 'IL2RA',
-    'C1QA', 'CD14', 'MRC1', 'C1QC', 'CD163'
-]
-
-Macrophages_1_genes = [
-    'C15orf48', 'APOBEC3A', 'FCER1A', 'ITGAX', 'APOC1', 'MMP12', 'CD1C', 'CLEC9A', 'LYZ', 'CX3CR1',
-    'MNDA', 'LY86', 'HAVCR2', 'FCGR3A', 'FGL2', 'IGSF6', 'CD86'
-]
-
-LAMP3_DCs_genes = [
-    'MAP3K8', 'PELI1', 'SERPINB9', 'CRHBP', 'FAM49A', 'PDCD1LG2', 'CD274', 'DUSP5', 'CCR7', 'CD80',
-    'CD83', 'BASP1', 'VOPP1', 'LPXN'
-]
-
-IRF7_DCs_genes = [
-    'CLECL1', 'ERN1', 'DERL3', 'SPIB', 'PTGDS', 'IL3RA', 'GZMB', 'PLD4', 'LILRA4', 'TCL1A',
-    'CXCR4', 'GPR183', 'SELL', 'CD4', 'GLIPR1'
-]
-
-Invasive_Tumor_genes = [
-    'ABCC11', 'SERHL2', 'TCIM'
-]
-
-Endothelial_genes = [
-    'LDHB', 'WARS', 'BACE2', 'ZEB1', 'EDNRB', 'ANGPT2', 'CAV1', 'HOXD8', 'CAVIN2', 'EDN1',
-    'RAPGEF3', 'SNAI1', 'EGFL7', 'NOSTRIN', 'AQP1', 'SOX18', 'CLDN5', 'BTNL9', 'VWF', 'MMRN2',
-    'ESM1', 'CLEC14A', 'HOXD9', 'RAMP2', 'KDR', 'SOX17', 'CD93', 'PECAM1', 'PPARG', 'TCF15',
-    'TCF4', 'AKR1C3'
+DCIS_1_genes = [
+    'DCIS1:HPX', 'CEACAM6', 'ESR1', 'HOOK2', 'CEACAM8', 'GATA3', 'TFAP2A', 'FLNB', 'KLF5', 'CD9',
+    'TPD52', 'CLDN4', 'SMS', 'DNTTIP1', 'QARS', 'C6orf132', 'KLRF1', 'LYPD3', 'SDC4', 'RHOH'
 ]
 
 DCIS_2_genes = [
-    'AGR3', 'S100A14', 'KRT8', 'AQP3'
+    'AGR3', 'S100A14', 'CEACAM8', 'KRT8', 'CCND1', 'CDH1', 'TCIM', 'AQP3', 'TACSTD2', 'LYPD3',
+    'SERHL2', 'ESR1', 'CEACAM6', 'BACE2', 'DSP', 'SERPINA3', 'RORC', 'ERBB2', 'CLDN4', 'DMKN'
 ]
 
-DCIS_1_genes = [
-    'SERPINA3', 'ESR1', 'CEACAM6', 'CEACAM8', 'C6orf132', 'LYPD3', 'QARS', 'SEC24A', 'TPD52', 'HPX',
-    'HOOK2', 'SMS', 'KLF5', 'TFAP2A', 'CD9', 'GATA3', 'FLNB', 'CLDN4', 'TRAPPC3', 'DNTTIP1',
-    'SDC4', 'CTH'
+Prolif_Invasive_genes = [
+    'CENPF', 'MKI67', 'TOP2A', 'PCLAF', 'STC1', 'RTKN2', 'TUBA4A', 'MDM2', 'HMGA1', 'C2orf42',
+    'POLR2J3', 'PTRHD1', 'SRPK1', 'EIF4EBP1', 'SQLE', 'SH3YL1', 'THAP2', 'NPM3', 'LAG3', 'FOXA1'
 ]
 
-CD8_T_Cells_genes = [
-    'ADGRE5', 'GZMK', 'PRF1', 'CCL5', 'GZMA', 'CD8A', 'NKG7', 'CD8B', 'KLRC1', 'KLRD1',
-    'DUSP2', 'GNLY', 'PTPRC', 'APOBEC3B', 'CYTIP', 'IL2RG', 'PDCD1', 'TIGIT', 'CD3G', 'TRAC',
-    'CD3E', 'CD247', 'CD3D', 'KLRF1'
+Invasive_Tumor_genes = [
+    'ABCC11', 'SERHL2', 'TCIM', 'FASN', 'AR', 'PTRHD1', 'TRAF4', 'USP53', 'SCD', 'SQLE',
+    'MYO5B', 'DNAAF1', 'FOXA1', 'EPCAM', 'CTTN', 'MLPH', 'ELF3', 'ANKRD30A', 'ENAH', 'KARS'
 ]
 
-CD4_T_Cells_genes = [
-    'LTB', 'SLAMF1', 'FOXP3', 'IL7R', 'CTLA4', 'KLRB1', 'CCL20', 'TCF7'
-]
-
-B_Cells_genes = [
-    'ITM2C', 'CCPG1', 'TIFA', 'SEC11C', 'TENT5C', 'RAB30', 'MZB1', 'CD27', 'PRDM1', 'SLAMF7',
-    'CD79B', 'MS4A1', 'CD19', 'CD79A', 'BANK1', 'TNFRSF17'
-]
-
+# 合并所有基因集用于评分
 gene_sets_to_score = {
-    'Stromal_score': Stromal_genes,
-    'Prolif_Invasive_Tumor_score': Prolif_Invasive_Tumor_genes,
-    'Perivascular_Like_score': Perivascular_Like_genes,
-    'Myoepi_KRT15_score': Myoepi_KRT15_genes,
-    'Myoepi_ACTA2_score': Myoepi_ACTA2_genes,
-    'Mast_Cells_score': Mast_Cells_genes,
-    'Macrophages_2_score': Macrophages_2_genes,
-    'Macrophages_1_score': Macrophages_1_genes,
-    'LAMP3_DCs_score': LAMP3_DCs_genes,
-    'IRF7_DCs_score': IRF7_DCs_genes,
-    'Invasive_Tumor_score': Invasive_Tumor_genes,
-    'Endothelial_score': Endothelial_genes,
-    'DCIS_2_score': DCIS_2_genes,
     'DCIS_1_score': DCIS_1_genes,
-    'CD8_T_Cells_score': CD8_T_Cells_genes,
-    'CD4_T_Cells_score': CD4_T_Cells_genes,
-    'B_Cells_score': B_Cells_genes,
+    'DCIS_2_score': DCIS_2_genes,
+    'Prolif_Invasive_score': Prolif_Invasive_genes,
+    'Invasive_Tumor_score': Invasive_Tumor_genes,
 }
-
 # -------------------------------------------------------------------------
 # 3. Xenium 数据打分
 # -------------------------------------------------------------------------

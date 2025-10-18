@@ -2,6 +2,19 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import torch
+import random
+
+# Step 0: 固定随机种子
+seed = 42
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+print(f"✅ 已设置随机种子: {seed}")
+
+
 import sys
 sys.path.append("/home/vs_theg/ST_program/cell_program_deconvolution/cell_program_deconvolution/")  # 添加上级目录到Python路径
 from deconvolution.model import DeconvModel
@@ -34,10 +47,9 @@ assert S == S_
 
 L = build_laplacian(coords, k=6)
 model = DeconvModel(T=T, P=P, S=S, X_tensor=X, L=L)
-
-
+            
 # Step 2: Train model
-train_model(model, Y_obs=Y, num_epochs=1500, lambda1=1e-4, lambda2=1e-4)             
+history = train_model(model, Y_obs=Y, num_epochs=3000)
 
 # Step 3: Visualize results
 Y_tps = model.Y_tps.detach()
@@ -56,15 +68,10 @@ T, P, S = Y_tps.shape
 # 确保索引
 celltype_names = np.array(['B_Cells', 'DCIS', 'Endothelial', 'Invasive_Tumor',
                            'Myeloid', 'Stromal', 'T_cells'])
-program_names = np.array(['Stromal_score_norm', 'Prolif_Invasive_Tumor_score_norm',
-                           'Perivascular_Like_score_norm', 'Myoepi_KRT15_score_norm',
-                             'Myoepi_ACTA2_score_norm', 'Mast_Cells_score_norm', 
-                             'Macrophages_2_score_norm', 'Macrophages_1_score_norm', 
-                             'LAMP3_DCs_score_norm', 'IRF7_DCs_score_norm', 
-                             'Invasive_Tumor_score_norm', 'Endothelial_score_norm', 
-                             'DCIS_2_score_norm', 'DCIS_1_score_norm', 
-                             'CD8_T_Cells_score_norm', 'CD4_T_Cells_score_norm', 
-                             'B_Cells_score_norm'])
+program_names = np.array(['Prolif_Invasive_Tumor_score_norm',
+                             'Invasive_Tumor_score_norm', 
+                             'DCIS_2_score_norm', 'DCIS_1_score_norm'
+                             ])
 spot_names = data['spot_names']
 # 1️⃣ 重新排列维度： (S, T, P)
 Y_tps_reordered = np.transpose(Y_tps, (2, 0, 1))  # S x T x P
@@ -72,14 +79,33 @@ Y_tps_reordered = np.transpose(Y_tps, (2, 0, 1))  # S x T x P
 # 2️⃣ 展平每个 spot 的 (T×P) 向量
 Y_tps_flat = Y_tps_reordered.reshape(S, T * P)
 
-# 3️⃣ 生成列名
+# 3️⃣构造 DataFrame
 columns = [f"{ct}+{pg}" for ct in celltype_names for pg in program_names]
-
-# 4️⃣ 构造 DataFrame
 y_tps_matrix_df = pd.DataFrame(Y_tps_flat, index=spot_names, columns=columns)
 
-# 5️⃣ 保存结果
-y_tps_matrix_df.to_csv("Y_tps_result.csv")
-print("✅ 已生成矩阵表：3953 × (7×17)")
-print(y_tps_matrix_df.shape)
-y_tps_matrix_df.to_csv('/home/vs_theg/ST_program/CellType_GP/DATA/train1500_result(wide).csv')
+# 4️⃣ 保存结果
+output_path = '/home/vs_theg/ST_program/CellType_GP/DATA/train1500_result(wide).csv'
+y_tps_matrix_df.to_csv(output_path, index=True)
+print(f"✅ 已生成矩阵表：{y_tps_matrix_df.shape[0]} × {y_tps_matrix_df.shape[1]}")
+print(f"👉 保存路径: {output_path}")
+
+
+# Step 5: Plot loss curve
+import matplotlib.pyplot as plt
+import numpy as np
+
+history = np.array(history)
+total_loss = history[:, 0]
+recon_loss = history[:, 1]
+
+plt.figure(figsize=(7,4))
+plt.plot(total_loss, label='Total Loss', linewidth=1.5)
+plt.plot(recon_loss, label='Reconstruction Loss', linewidth=1.5)
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Training Loss Curve')
+plt.legend()
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.tight_layout()
+plt.savefig("loss_curve.png", dpi=300)
+plt.show()
