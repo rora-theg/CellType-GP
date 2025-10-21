@@ -144,4 +144,4 @@ def compute_truth_score(adata, output_dir: str = "./truth_output"):
     save_truth_outputs(df_clean, truth_result, truth_wide, output_dir)
 
     print("\n🎉 Xenium truth score 计算完成！")
-    return truth_result, truth_wide
+    return truth_wide

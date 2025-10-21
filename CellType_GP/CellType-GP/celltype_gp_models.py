@@ -25,27 +25,27 @@ from scipy.spatial.distance import cdist
 # 🧠 核心函数：不同计算方法
 # ====================================================
 
+# 由于留一法在数值上相减两次相近预测，误差被严重抵消，建议弃用 delta_loo 或改为相对差定义，主用 residual_vectorized 做 ctGP 分解。
+# def delta_loo(Y, X):
+#     """贡献差值法 (Y_tps = y_full - y_loo)"""
+#     P, S = Y.shape
+#     S2, T = X.shape
+#     assert S == S2
+#     Y_tps = torch.zeros((T, P, S))
 
-def delta_loo(Y, X):
-    """贡献差值法 (Y_tps = y_full - y_loo)"""
-    P, S = Y.shape
-    S2, T = X.shape
-    assert S == S2
-    Y_tps = torch.zeros((T, P, S))
+#     X_scaled = (X - X.mean(0)) / (X.std(0) + 1e-6)
+#     ridge = Ridge(alpha=0.1)
 
-    X_scaled = (X - X.mean(0)) / (X.std(0) + 1e-6)
-    ridge = Ridge(alpha=0.1)
-
-    for p in range(P):
-        y = Y[p, :].numpy()
-        ridge.fit(X_scaled.numpy(), y)
-        y_full = ridge.predict(X_scaled.numpy())
-        for t in range(T):
-            X_loo = np.delete(X_scaled.numpy(), t, axis=1)
-            ridge.fit(X_loo, y)
-            y_loo = ridge.predict(X_loo)
-            Y_tps[t, p, :] = torch.tensor(y_full - y_loo)
-    return Y_tps
+#     for p in range(P):
+#         y = Y[p, :].numpy()
+#         ridge.fit(X_scaled.numpy(), y)
+#         y_full = ridge.predict(X_scaled.numpy())
+#         for t in range(T):
+#             X_loo = np.delete(X_scaled.numpy(), t, axis=1)
+#             ridge.fit(X_loo, y)
+#             y_loo = ridge.predict(X_loo)
+#             Y_tps[t, p, :] = torch.tensor(y_full - y_loo)
+#     return Y_tps
 
 
 def residual_vectorized(Y, X):
@@ -69,7 +69,7 @@ def residual_vectorized(Y, X):
     return Y_tps
 
 
-
+# 空间依赖性建模法（取消）
 
 # ====================================================
 # 🧾 工具函数
@@ -91,7 +91,7 @@ def run_model(npz_path, method="vectorized", save_path="train_result.csv"):
     data = np.load(npz_path, allow_pickle=True)
     Y = torch.tensor(data["visium_score"], dtype=torch.float32)  # (P, S)
     X = torch.tensor(data["spot_cluster_fraction_matrix"], dtype=torch.float32)  # (S, T)
-    coords = data["coords"]
+    coords = data["coords"] # 若需空间依赖性建模，则因导入coords
     spot_names = data["spot_names"]
     celltype_names = data["celltype_names"]
     program_names = data["program_names"]

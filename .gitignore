@@ -26,6 +26,9 @@ venv/
 *.tar.gz
 *.npz
 *.png
+*.txt
+*.pdf
+*.pt
 
 # Logs
 *.log
