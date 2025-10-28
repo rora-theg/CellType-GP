@@ -16,8 +16,11 @@ def score_gene_programs(
     output_dir: str = "results_scores",
     library_id: str = "spatial",
     log_transform: bool = True,
-    normalize: bool = True,
+    normalize: bool = False,
+    norm_method: str = "none",  # {'minmax','zscore','none'}
     seed: int = 42,
+    draw_umap: bool = True,
+    draw_spatial: bool = True,
 ):
     """
     对空间转录组数据进行基因集打分（log1p + 平均表达）。
@@ -98,8 +101,16 @@ def score_gene_programs(
 
         # ---- 归一化 ----
         if normalize:
-            scaler = MinMaxScaler()
-            scores = scaler.fit_transform(scores.values.reshape(-1, 1)).flatten()
+            if norm_method == "minmax":
+                scaler = MinMaxScaler()
+                scores = scaler.fit_transform(scores.values.reshape(-1, 1)).flatten()
+            elif norm_method == "zscore":
+                v = scores.values
+                scores = (v - v.mean()) / (v.std() + 1e-8)
+            elif norm_method == "none":
+                pass
+            else:
+                print(f"⚠️ 未知归一化方法 {norm_method}，已跳过归一化。")
 
         # 保存结果
         adata.obs[score_name + ("_norm" if normalize else "")] = scores
@@ -110,32 +121,40 @@ def score_gene_programs(
 
         # ---- 绘图 ----
         color_key = score_name + ("_norm" if normalize else "")
-        # UMAP
-        fig_umap = sc.pl.umap(
-            adata,
-            color=color_key,
-            cmap=cmap,
-            show=False,
-            size=3,
-            title=f"{platform.upper()} UMAP: {score_name}"
-        )
-        fig_umap.figure.set_size_inches(4, 3)
-        fig_umap.figure.savefig(score_dir / "UMAP.png", dpi=300, bbox_inches="tight")
-        plt.close(fig_umap.figure)
+        # UMAP（若未计算 UMAP 或禁用绘图，则跳过）
+        if draw_umap and ("X_umap" in adata.obsm_keys()):
+            fig_umap = sc.pl.umap(
+                adata,
+                color=color_key,
+                cmap=cmap,
+                show=False,
+                size=3,
+                title=f"{platform.upper()} UMAP: {score_name}"
+            )
+            fig_umap.figure.set_size_inches(4, 3)
+            fig_umap.figure.savefig(score_dir / "UMAP.png", dpi=300, bbox_inches="tight")
+            plt.close(fig_umap.figure)
+        elif draw_umap:
+            print("ℹ️ 跳过 UMAP 绘图：未找到 adata.obsm['X_umap']。")
 
         # Spatial
-        fig, ax = plt.subplots(figsize=(4, 4))
-        sq.pl.spatial_scatter(
-            adata,
-            library_id=library_id,
-            color=color_key,
-            shape=None,
-            wspace=0.15,
-            title=f"{platform.upper()} Spatial: {score_name}",
-            ax=ax
-        )
-        fig.savefig(score_dir / "Spatial.png", dpi=300, bbox_inches="tight")
-        plt.close(fig)
+        # Spatial（需要 Visium 空间元数据；异常时跳过）
+        if draw_spatial:
+            try:
+                fig, ax = plt.subplots(figsize=(4, 4))
+                sq.pl.spatial_scatter(
+                    adata,
+                    library_id=library_id,
+                    color=color_key,
+                    shape=None,
+                    wspace=0.15,
+                    title=f"{platform.upper()} Spatial: {score_name}",
+                    ax=ax
+                )
+                fig.savefig(score_dir / "Spatial.png", dpi=300, bbox_inches="tight")
+                plt.close(fig)
+            except Exception as e:
+                print(f"ℹ️ 跳过空间绘图（{score_name}）：{e}")
 
         print(f"✅ 完成: {score_name} ({len(existing_genes)} 基因)\n")
 

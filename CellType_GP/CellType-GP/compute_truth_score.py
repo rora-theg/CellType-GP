@@ -1,7 +1,7 @@
 """
 计算 Xenium 数据的真实基因程序得分（truth score）
 函数化版本：可清洗、分组、透视、保存
-作者：theg
+作者：theg（本次改动：去交互化入口、使用清洗后的 DataFrame、可配置分组列名）
 """
 
 import scanpy as sc
@@ -27,12 +27,16 @@ def clean_obs_data(adata, drop_columns: list[str] = None):
     print(col_list)
     print("\n💡 提示：你可以复制上面这一行，然后粘贴要删除的列（或部分列）")
 
-    # 2️⃣ 若没传 drop_columns，则交互式输入
+    # 2️⃣ 去交互化（如未提供 drop_columns，则不删除；保留交互作为 fallback）
     if drop_columns is None:
-        user_input = input("\n请输入要删除的列（多个用逗号分隔，直接回车则跳过删除）:\n> ").strip()
-        if user_input:
-            drop_columns = [c.strip() for c in user_input.split(",") if c.strip()]
-        else:
+        try:
+            user_input = input("\n请输入要删除的列（多个用逗号分隔，直接回车则跳过删除）:\n> ").strip()
+            if user_input:
+                drop_columns = [c.strip() for c in user_input.split(",") if c.strip()]
+            else:
+                drop_columns = []
+        except Exception:
+            # 非交互环境：忽略删除
             drop_columns = []
 
     # 3️⃣ 执行删除
@@ -50,25 +54,25 @@ def clean_obs_data(adata, drop_columns: list[str] = None):
     return df
 
 
-def compute_group_means(df: pd.DataFrame):
+def compute_group_means(df: pd.DataFrame, spot_col: str, celltype_col: str):
     """
-    按 Visium barcode + broad_annotation 分组，计算各 _score_norm 列的平均值
+    按 Visium barcode + broad_annotation 分组，计算各 _score 列的平均值
     返回 group 平均与计数
     """
-    score_cols = [col for col in df.columns if col.endswith('_score_norm')]
+    score_cols = [col for col in df.columns if col.endswith('_score')]
     if len(score_cols) == 0:
-        raise ValueError("❌ 未找到 *_score_norm 列，请确认打分是否完成")
+        raise ValueError("❌ 未找到 *_score 列，请确认打分是否完成")
 
     print(f"🧩 检测到 {len(score_cols)} 个得分列：{score_cols[:5]} ...")
 
     grouped_means = (
-        df.groupby(['transcript_level_visium_barcode', 'broad_annotation'])[score_cols]
+        df.groupby([spot_col, celltype_col])[score_cols]
         .mean()
         .reset_index()
     )
 
     grouped_counts = (
-        df.groupby(['transcript_level_visium_barcode', 'broad_annotation'])
+        df.groupby([spot_col, celltype_col])
         .size()
         .reset_index(name='cell_count')
     )
@@ -79,18 +83,12 @@ def compute_group_means(df: pd.DataFrame):
     print(f"✅ 分组平均完成: {truth_result.shape[0]} 行")
     return truth_result
 
-
-def pivot_truth_scores(truth_result: pd.DataFrame):
+                       
+def pivot_truth_scores(truth_result: pd.DataFrame, spot_col: str, celltype_col: str):
     """将 truth_result 转为宽表 (spot × celltype+program)"""
-    program_cols = [c for c in truth_result.columns if c.endswith('_score_norm')]
-    spot_col = 'transcript_level_visium_barcode'
-    celltype_col = 'broad_annotation'
+    program_cols = [c for c in truth_result.columns if c.endswith('_score')]
 
-    truth_wide = truth_result.pivot_table(
-        index=spot_col,
-        columns=celltype_col,
-        values=program_cols
-    )
+    truth_wide = truth_result.pivot_table(index=spot_col, columns=celltype_col, values=program_cols)
 
     # 展开多级列名
     truth_wide.columns = [f"{ctype}+{pg}" for pg, ctype in truth_wide.columns]
@@ -122,7 +120,10 @@ def save_truth_outputs(df_clean: pd.DataFrame,
 
 # ========== 主函数入口 ==========
 
-def compute_truth_score(adata, output_dir: str = "./truth_output"):
+def compute_truth_score(adata, output_dir: str = "./truth_output",
+                       spot_col: str = 'transcript_level_visium_barcode',
+                       celltype_col: str = 'broad_annotation',
+                       drop_columns: list[str] = None):
     """
     从已加载的 Xenium AnnData 对象计算真实基因程序得分。
     参数:
@@ -131,14 +132,14 @@ def compute_truth_score(adata, output_dir: str = "./truth_output"):
     """
     print(f"🚀 开始计算 Xenium truth score, 输出路径: {output_dir}")
 
-    # Step 1️⃣ 清洗 obs
-    df_clean = clean_obs_data(adata)
+    # Step 1️⃣ 清洗 obs（非交互环境可传入 drop_columns=None 以保持原样）
+    df_clean = clean_obs_data(adata, drop_columns=drop_columns)
 
-    # Step 2️⃣ 计算分组均值
-    truth_result = compute_group_means(adata.obs)
+    # Step 2️⃣ 计算分组均值（使用清洗后的 df_clean）
+    truth_result = compute_group_means(df_clean, spot_col=spot_col, celltype_col=celltype_col)
 
     # Step 3️⃣ 转宽表
-    truth_wide = pivot_truth_scores(truth_result)
+    truth_wide = pivot_truth_scores(truth_result, spot_col=spot_col, celltype_col=celltype_col)
 
     # Step 4️⃣ 保存结果
     save_truth_outputs(df_clean, truth_result, truth_wide, output_dir)

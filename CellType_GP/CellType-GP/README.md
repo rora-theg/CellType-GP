@@ -61,7 +61,7 @@
 
 ## 🧠 四、核心建模方法
 
-### 1️⃣ 残差法（Residual LOO）（被3️⃣ 向量化实现 优化掉了)
+### 1️⃣ 残差法（LOFO 重拟合 Residual LOO；可选慢速）
 
 **思想：**  
 对每个细胞类型 t，将其从细胞比例矩阵中移除，拟合剩余类型与 GP 的关系，计算残差。该残差代表细胞类型 t 的特异性贡献。
@@ -91,10 +91,22 @@ Y_{tps} = (Xeta) - (X_{-t}eta_{-t})
 
 ---
 
-### 3️⃣ 向量化实现（Residual Vectorized）
+### 3️⃣ 向量化实现（Additive Contribution Vectorized，默认）
 
 **思想：**  
 在残差法基础上，通过矩阵运算一次性计算所有细胞类型的贡献，大幅提高计算效率。
+
+实现细节：先以 Ridge 拟合 Y≈X·β，随后将预测按 t 分解为贡献项 X[:,t]·β[t,:]，满足线性可加性。
+
+命令示例：
+- 运行模型（默认向量化贡献分解）：
+  `python celltype_gp_models.py --input DATA/spot_data_full.npz --method vectorized --save DATA/pred_result(vectorized).csv`
+- 运行 LOFO 重拟合（慢速）：
+  `python celltype_gp_models.py --input DATA/spot_data_full.npz --method lofo_refit --save DATA/pred_result(lofo).csv`
+
+预处理管线（参数化版）：
+- 生成 npz 与评分输出：
+  `python preprocessing.py --xenium DATA/xdata.h5 --visium DATA/vdata.h5 --fractions DATA/spot_cluster_fraction_matrix.csv --x2v-map DATA/xenium_to_visium_transcript_mapping.csv --outdir DATA`
 
 ---
 

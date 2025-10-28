@@ -5,7 +5,7 @@ train_utils.py
 ----------------
 用于 CellType-GP 模型的通用训练工具模块。
 包含：
-    1. train_model() —— 主训练函数
+    1. train_model_2() —— 主训练函数
     2. 自动 early stopping
     3. 学习率动态调整 (ReduceLROnPlateau)
     4. 训练曲线可视化与日志保存
@@ -28,7 +28,7 @@ def train_model_2(
     lambda1=1e-4,
     lambda2=1e-2,
     early_stop=True,
-    patience=300,
+    patience=400,
     tol=1e-5,
     verbose=True,
     save_dir="./training_logs",
@@ -42,10 +42,10 @@ def train_model_2(
     ----------
     model : torch.nn.Module
         已定义好的深度学习模型，必须实现 model.loss(Y_obs, lambda1, lambda2) 接口，
-        返回 (loss, recon_loss)。
+        返回 (total_loss, recon_loss, l1_loss, smooth_loss)。
 
     Y_obs : torch.Tensor
-        观测数据张量，形状通常为 (spots × gene_programs)。
+        观测数据张量，形状通常为 (programs × spots)。
 
     num_epochs : int, 默认 3000
         训练轮次（最大迭代次数）。
@@ -62,7 +62,7 @@ def train_model_2(
     early_stop : bool, 默认 True
         是否启用早停机制（loss 长期无改善自动停止）。
 
-    patience : int, 默认 300
+    patience : int, 默认 400
         早停容忍次数，即连续多少个 epoch 没有改善后停止。
 
     tol : float, 默认 1e-5
@@ -78,8 +78,10 @@ def train_model_2(
     ----------
     history : dict
         包含训练历史的字典：
-            - 'train_loss': 总损失（含正则）
+            - 'total_loss': 总损失（含正则）
             - 'recon_loss': 重构误差
+            - 'l1_loss': L1 正则项
+            - 'smooth_loss': 空间平滑正则项
             - 'lr': 学习率变化
             - 'best_loss': 最优 loss 值
             - 'best_epoch': 对应 epoch
@@ -93,11 +95,11 @@ def train_model_2(
 
     # 学习率调度器：当验证集的 loss 长期不改善时，自动将学习率减半
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="min", factor=0.5, patience=patience // 4
+        optimizer, mode="min", factor=0.5, patience=max(1, patience // 4) ,min_lr=1e-5
     )
 
     # 记录训练过程
-    history = {"train_loss": [], "recon_loss": [], "lr": []}
+    history = {"total_loss": [], "recon_loss": [],  "l1_loss":[], "smooth_loss":[] ,"lr": [] }
 
     best_loss = np.inf  # 最优loss初始化为无穷大
     best_epoch = 0      # 记录最优epoch
@@ -109,32 +111,43 @@ def train_model_2(
     # ========== 主训练循环 ==========
     for epoch in pbar:
         # 1. 前向传播 + 计算loss
-        loss, recon = model.loss(Y_obs, lambda1, lambda2)
+        total_loss, recon_loss, l1_loss, smooth_loss = model.loss(Y_obs, lambda1, lambda2)
+
 
         # 2. 反向传播
         optimizer.zero_grad()
-        loss.backward()
+        total_loss.backward()
         optimizer.step()
 
         # 3. 记录当前学习率与loss
         current_lr = optimizer.param_groups[0]["lr"]
-        history["train_loss"].append(loss.item())
-        history["recon_loss"].append(recon.item())
+        history["total_loss"].append(total_loss.item())
+        history["recon_loss"].append(recon_loss.item())
+        history["l1_loss"].append(l1_loss.item() if hasattr(l1_loss, 'item') else float(l1_loss))
+        history["smooth_loss"].append(smooth_loss.item() if hasattr(smooth_loss, 'item') else float(smooth_loss))
         history["lr"].append(current_lr)
 
         # 4. 更新学习率调度器
-        scheduler.step(loss.item())
+        scheduler.step(total_loss.item())
 
-        # 5. 进度条显示
+        # 5. 进度条显示并打印中间层
         if verbose:
             pbar.set_description(
-                f"Epoch {epoch:4d} | Loss {loss.item():.4f} | Recon {recon.item():.4f} | LR {current_lr:.2e}"
+                f"Epoch {epoch:4d} | Loss {total_loss.item():.4f} | Recon {recon_loss.item():.4f} | LR {current_lr:.2e}"
             )
+
+        if epoch % 500 == 0:  # 每500轮打印一次中间层统计
+            with torch.no_grad():
+                Y_pred = model.forward()
+                print(f"🔍 [中间层检查] Epoch {epoch}")
+                print(f"  Y_tps  mean={model.Y_tps.mean().item():.6e}, std={model.Y_tps.std().item():.6e}")
+                print(f"  Y_pred mean={Y_pred.mean().item():.6e}, std={Y_pred.std().item():.6e}")
+
 
         # 6. 早停逻辑
         if early_stop:
-            if loss.item() < best_loss - tol:
-                best_loss = loss.item()
+            if total_loss.item() < best_loss - tol:
+                best_loss = total_loss.item()
                 best_epoch = epoch
                 no_improve = 0
                 # 保存当前模型参数
@@ -155,13 +168,13 @@ def train_model_2(
     # 保存loss曲线
     fig_path = os.path.join(save_dir, "loss_curve.png")
     plt.figure(figsize=(7, 5))
-    plt.plot(history["train_loss"], label="Total Loss", color="tab:blue")
+    plt.plot(history["total_loss"], label="Total Loss", color="tab:blue")
     plt.plot(history["recon_loss"], label="Reconstruction Loss", color="tab:orange")
     plt.axvline(best_epoch, color="red", linestyle="--", label=f"Best Epoch {best_epoch}")
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
     plt.legend()
-    plt.title("Training Loss Curve")
+    plt.title("Total Loss Curve")
     plt.tight_layout()
     plt.savefig(fig_path, dpi=300)
     plt.close()
@@ -179,8 +192,8 @@ def train_model_2(
         f.write(f"最优Loss: {best_loss:.6f}\n")
         f.write(f"最终学习率: {history['lr'][-1]:.6e}\n")
         f.write("\n====== 历史Loss前5条记录 ======\n")
-        for i in range(min(5, len(history['train_loss']))):
-            f.write(f"Epoch {i}: loss={history['train_loss'][i]:.6f}\n")
+        for i in range(min(5, len(history['total_loss']))):
+            f.write(f"Epoch {i}: loss={history['total_loss'][i]:.6f}\n")
         f.write("\n训练完成！\n")
 
     if verbose:

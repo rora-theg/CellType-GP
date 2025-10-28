@@ -21,6 +21,9 @@ class DeconvModel(nn.Module):
         for t in range(self.Y_tps.shape[0]):
             for p in range(self.Y_tps.shape[1]):
                 y = self.Y_tps[t, p, :].unsqueeze(0)
-                smooth_loss += torch.matmul(torch.matmul(y, self.L), y.t()).squeeze()
+                val = torch.matmul(torch.matmul(y, self.L), y.t()).squeeze()
+                smooth_loss += val
+        
+        total_loss = recon_loss + lambda1 * l1_loss + lambda2 * smooth_loss
 
-        return recon_loss + lambda1 * l1_loss + lambda2 * smooth_loss, recon_loss
+        return total_loss, recon_loss, l1_loss, smooth_loss
