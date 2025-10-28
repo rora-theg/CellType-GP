@@ -10,7 +10,7 @@ train_utils.py
     3. 学习率动态调整 (ReduceLROnPlateau)
     4. 训练曲线可视化与日志保存
 
-版本: v1.0
+
 """
 
 import os
@@ -26,7 +26,7 @@ def train_model_2(
     num_epochs=3000,
     lr=1e-3,
     lambda1=1e-4,
-    lambda2=1e-2,
+    lambda2=0,
     early_stop=True,
     patience=400,
     tol=1e-5,
@@ -81,7 +81,7 @@ def train_model_2(
             - 'total_loss': 总损失（含正则）
             - 'recon_loss': 重构误差
             - 'l1_loss': L1 正则项
-            - 'smooth_loss': 空间平滑正则项
+            - 'smooth_loss': 空间平滑正则项  ToDo:删除
             - 'lr': 学习率变化
             - 'best_loss': 最优 loss 值
             - 'best_epoch': 对应 epoch
