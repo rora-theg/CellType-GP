@@ -52,7 +52,8 @@ def clr_transform(X: np.ndarray, eps: float = 1e-6) -> np.ndarray:
 
 def contribution_vectorized(Y: np.ndarray, X: np.ndarray, alpha: float = 0.1, 
                             use_clr: bool = False,eps: float = 1e-6,
-                            standardize: bool = False) -> np.ndarray:
+                            standardize: bool = False,
+                            positive: bool = True) -> np.ndarray:
     """
     向量化加性贡献分解（默认方法）
     Vectorized additive contribution decomposition.
@@ -64,6 +65,7 @@ def contribution_vectorized(Y: np.ndarray, X: np.ndarray, alpha: float = 0.1,
         use_clr: 是否对 X 做 CLR 变换（建议 True），消除细胞比例矩阵的完全共线性问题。
         eps: CLR 变换中的最小值截断，防止 log(0）。
         standardize: 是否对 X 做列标准化（建议 True）。
+        positive: 是否对 Ridge 回归的系数施加非负约束。
 
     返回 / Returns:
         Y_tps: (T, P, S)，每个细胞类型 t 对 (程序 p, spot s) 的加性贡献。
@@ -87,10 +89,11 @@ def contribution_vectorized(Y: np.ndarray, X: np.ndarray, alpha: float = 0.1,
 
 
     # sklearn 期望形状：fit(X: (S,T), Y: (S,P))
-    ridge = Ridge(alpha=alpha)
+    ridge = Ridge(alpha=alpha, positive=positive)
     ridge.fit(X_in, Y.T)
     # sklearn.coef_ 形状为 (n_targets=P, n_features=T)
     beta = ridge.coef_.T  # (T, P)
+
 
     # 贡献分解：对每个 t，contrib_t(s,p) = X_in[s,t] * beta[t,p]
     # 通过爱因斯坦求和向量化：
@@ -160,7 +163,8 @@ def Ytps_to_wide_df(Y_tps, spot_names, celltype_names, program_names):
 # ====================================================
 
 def run_model(npz_path, method: str = "vectorized", save_path: str = "train_result.csv",
-              alpha: float = 0.1, standardize: bool = False ):
+              alpha: float = 0.1, standardize: bool = False , use_clr: bool = False,
+              positive: bool = True) -> pd.DataFrame:
     """
     运行 ctGP 分解，并导出宽表。
 
@@ -182,9 +186,9 @@ def run_model(npz_path, method: str = "vectorized", save_path: str = "train_resu
     program_names = data["program_names"]
 
     if method == "vectorized":
-        Y_tps = contribution_vectorized(Y, X, alpha=alpha, standardize=standardize, use_clr=True, eps=1e-6)
+        Y_tps = contribution_vectorized(Y, X, alpha=alpha, standardize=standardize, use_clr=use_clr, eps=1e-6,positive=positive)
     elif method == "lofo_refit":
-        Y_tps = lofo_refit_residual(Y, X, alpha=alpha, standardize=standardize, use_clr=True, eps=1e-6)
+        Y_tps = lofo_refit_residual(Y, X, alpha=alpha, standardize=standardize, use_clr=use_clr, eps=1e-6,positive=positive)
     else:
         raise ValueError("method 必须是 ['vectorized', 'lofo_refit'] 之一")
 
