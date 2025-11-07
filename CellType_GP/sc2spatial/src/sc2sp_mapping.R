@@ -16,14 +16,14 @@ gc()
 ## 模拟的具体流程在主论文及补充材料中有详细描述。
 
 ## -------------------------------
-## 1. 设置参数
+## 1. 设置参数--------------------
 ## -------------------------------
 iseed <- 3 ## 随机种子，保证可重复性
 imix <- 0 ## 噪声混合参数（0表示无噪声）
 ntotal <- 10 ## 每个空间位置包含的细胞总数
 
 ## -------------------------------
-## 2. 加载单细胞RNA测序数据
+## 2. 加载单细胞RNA测序数据--------
 ## -------------------------------
 ## 将单细胞数据分为两部分：
 ## split1 用于模拟空间数据；
@@ -46,18 +46,16 @@ sc_merge <- Biobase::combine(split$eset.sub.split1, split$eset.sub.split2)
 dim(exprs(sc_merge))
 # [1] 18263 20418
 sc_merge
-unique(sc_merge@phenoData$cellType)
-table(sc_merge@phenoData$cellType)
-table(pattern_gp_label)
+
 ## -------------------------------
-## 3. 加载预定义的层标签与空间位置信息
+## 3. 加载预定义的层标签与空间位置信息----
 ## -------------------------------
 load("./simulations/pattern_gp_label.RData")
 load("./simulations/sim_MOB_location.RData")
 
-## -------------------------------
-## 4. 定义函数：用于生成模拟数据
-## -------------------------------
+## --------------------------------
+## 4. 定义函数：用于生成模拟数据----
+## --------------------------------
 
 #### 函数1：从Dirichlet分布生成随机数（用于生成细胞类型比例）
 generateMultiN <- function(pattern_gp_label, ipt, ntotal, mix, ct.select) {
@@ -127,6 +125,7 @@ generateMultiN <- function(pattern_gp_label, ipt, ntotal, mix, ct.select) {
 }
 
 #### 函数2：根据给定比例生成空间数据矩阵，并记录单细胞到空间点映射
+#### 如果读取错误，在复制到终端运行
 generateSpatial_norep_fixedProp <- function(
     seed,
     sc_merge,
@@ -308,10 +307,9 @@ generateSpatial_norep_fixedProp <- function(
   )
 }
 
-table(table(sc_merge@phenoData@data[, ct.varname]))
 
 ## -------------------------------
-## 5. 模拟数据执行部分
+## 5. 模拟数据执行部分-------------
 ## -------------------------------
 
 library(pbmcapply)
@@ -340,7 +338,7 @@ spatial.pseudo <- generateSpatial_norep_fixedProp(
 
 
 ## -------------------------------
-## 6. 检查模拟结果
+## 6. 检查模拟结果----------------
 ## -------------------------------
 
 ## 平均每个spot的细胞数
@@ -361,16 +359,19 @@ print(colMeans(spatial.pseudo$true.p))
 ## 然后可以继续运行 CARD
 
 ## --------------------------------------
-## 7. 映射与配对单细胞数据保存
+## 7. 映射与配对单细胞数据保存------------
 ## --------------------------------------
-sum(duplicated(mapping$cell_id))
-
+library(Seurat)
+library(SeuratDisk)
+library(Matrix)
+library(Biobase)
 # 直接使用函数返回的映射（与伪空间表达严格一致）
 mapping <- spatial.pseudo$mapping
+sum(duplicated(mapping$cell_id)) # 检查cell_id是否唯一 输出应为：[1] 0
 outdir <- "/home/vs_theg/ST_program/CellType_GP/sc2spatial/DATA/sim_ctgp/"
-dir.create(outdir, showWarnings = FALSE, recursive = TRUE)
-write.csv(mapping, file = file.path(outdir, "cell_to_spot_mapping.csv"), row.names = FALSE)
-message("✅ Saved raw mapping: ", nrow(mapping), " rows to ", outdir)
+# dir.create(outdir, showWarnings = FALSE, recursive = TRUE)
+# write.csv(mapping, file = file.path(outdir, "cell_to_spot_mapping.csv"), row.names = FALSE)
+# message("✅ Saved raw mapping: ", nrow(mapping), " rows to ", outdir)
 # ✅ Saved raw mapping: 2559 rows to /home/vs_theg/ST_program/CellType_GP/sc2spatial/DATA/sim_ctgp/
 
 # 基于映射抽取配对的单细胞，生成一个新的数据集（与空间数据一一对应）
@@ -378,16 +379,42 @@ paired_cell_ids <- unique(mapping$cell_id)
 paired_idx <- match(paired_cell_ids, colnames(exprs(sc_merge)))
 paired_idx <- paired_idx[!is.na(paired_idx)]
 paired_sc <- sc_merge[, paired_idx]
-save(paired_sc, file = file.path(outdir, "sc_2559.RData"))
+save(paired_sc, file = file.path(outdir, "sc_paired.RData"))
 message("✅ Saved paired single-cell object with ", ncol(exprs(paired_sc)), " cells")
 
-# 同步导出单细胞表达矩阵（稀疏矩阵）与元数据，便于后续分析
+
 paired_expr <- exprs(paired_sc)
-saveRDS(paired_expr, file = file.path(outdir, "sc_2559.rds")) # rds元数据
 paired_meta <- Biobase::pData(paired_sc)
 paired_meta$cell_id <- rownames(paired_meta)
-write.csv(paired_meta, file = file.path(outdir, "paired_singlecell_metadata.csv"), row.names = FALSE) # 单细胞表达矩阵
-message("✅ Exported paired single-cell expression (RDS) 与 metadata (CSV)")
+
+library(Matrix)
+library(data.table)
+
+# 确保表达矩阵是稀疏格式
+if (!inherits(paired_expr, "dgCMatrix")) {
+  paired_expr <- as(paired_expr, "dgCMatrix")
+}
+# 导出表达矩阵（Matrix Market 格式）
+Matrix::writeMM(paired_expr, file = file.path(outdir, "sc_paired_expr.mtx"))
+# 1️⃣ 导出基因名（行名）
+fwrite(data.frame(gene = rownames(paired_expr)),
+  file.path(outdir, "genes.tsv"),
+  sep = "\t", col.names = FALSE
+)
+# 2️⃣ 导出细胞名（列名）
+fwrite(data.frame(cell = colnames(paired_expr)),
+  file.path(outdir, "barcodes.tsv"),
+  sep = "\t", col.names = FALSE
+)
+# 3️⃣ 导出元数据
+paired_meta$cell_id <- rownames(paired_meta)
+write.csv(paired_meta, file = file.path(outdir, "sc_paired_metadata.csv"), row.names = FALSE)
+message("✅ 全部导出完成！现在目录中应有以下文件：
+  - sc_paired_expr.mtx
+  - genes.tsv
+  - barcodes.tsv
+  - sc_paired_metadata.csv")
+
 
 # spot - cell 映射汇总表，便于核查每个 spot 对应的细胞列表
 library(dplyr)
@@ -398,7 +425,7 @@ write.csv(mapping_summary, file = file.path(outdir, "spot_to_cells.csv"), row.na
 message("✅ Exported spot_to_cells summary for quick lookup.")
 
 ## -------------------------------
-## 8. 预处理模拟数据并保存
+## 8. 预处理模拟数据并保存---------
 ## -------------------------------
 head(location)
 coords <- location
@@ -406,6 +433,8 @@ coords$id <- paste0(coords$x, "x", coords$y)
 coords$spot_id <- sprintf("spot%03d", seq_len(nrow(coords))) # spot001, spot002, ...
 # 创建 id（x,y） 到 spot_id 的映射
 id_map <- setNames(coords$spot_id, coords$id)
+write.csv(coords, file = file.path(outdir, "sp_coords.csv"))
+
 
 # 替换表达矩阵的列名
 colnames(spatial.pseudo$pseudo.data) <- id_map[colnames(spatial.pseudo$pseudo.data)]
@@ -414,13 +443,13 @@ rownames(spatial.pseudo$Sample_random) <- id_map[rownames(spatial.pseudo$Sample_
 rownames(spatial.pseudo$true.p) <- id_map[rownames(spatial.pseudo$true.p)]
 
 write.csv(spatial.pseudo$pseudo.data,
-  file = "/home/vs_theg/ST_program/CellType_GP/sc2spatial/DATA/sim_ctgp/pseudo_data.csv"
+  file = "/home/vs_theg/ST_program/CellType_GP/sc2spatial/DATA/sim_ctgp/sp_pseudo_data.csv"
 )
 write.csv(spatial.pseudo$true.p,
-  file = "/home/vs_theg/ST_program/CellType_GP/sc2spatial/DATA/sim_ctgp/true_p.csv"
+  file = "/home/vs_theg/ST_program/CellType_GP/sc2spatial/DATA/sim_ctgp/sp_true_p.csv"
 )
 write.csv(spatial.pseudo$Sample_random,
-  file = "/home/vs_theg/ST_program/CellType_GP/sc2spatial/DATA/sim_ctgp/sample_random.csv"
+  file = "/home/vs_theg/ST_program/CellType_GP/sc2spatial/DATA/sim_ctgp/sp_sample_random.csv"
 )
 
 
@@ -429,3 +458,18 @@ mapping2 <- mapping
 mapping2$spot_id <- id_map[mapping2$spot_id]
 write.csv(mapping2, file.path(outdir, "cell_to_spot_mapping.csv"), row.names = FALSE)
 message("✅ Saved renamed mapping with spot ids: ", nrow(mapping2))
+# ✅ Saved renamed mapping with spot ids: 2559
+
+# 合并数据框
+merged_table <- merge(coords[, c("x", "y", "spot_id", "id")],
+  mapping2[, c("spot_id", "cell_id")],
+  by = "spot_id"
+)
+# 查看结果
+head(merged_table)
+
+# 保存到 CSV
+write.csv(merged_table,
+  file = "/home/vs_theg/ST_program/CellType_GP/sc2spatial/DATA/sim_ctgp/coords_sc2sp.csv",
+  row.names = FALSE
+)

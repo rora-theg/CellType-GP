@@ -1,3 +1,6 @@
+rm(list = ls())
+gc()
+
 setwd("/home/vs_theg/ST_program/CellType_GP/sc2spatial/DATA/folder")
 load("./simulations//split.scRNAseq.forSimu.RData")
 
@@ -168,3 +171,31 @@ FeaturePlot(
 
 dev.off()
 
+
+# 1️⃣ Neurons marker
+markers_neurons <- FindMarkers(
+  seu, ident.1 = "Neurons", only.pos = TRUE,
+  min.pct = 0.25, logfc.threshold = 0.25, test.use = "wilcox"
+)
+neurons_top30 <- head(markers_neurons[order(markers_neurons$avg_log2FC, decreasing = TRUE), ], 30)
+neurons_top30_genes <- rownames(neurons_top30)
+
+# 2️⃣ Astrocytes marker
+markers_astro <- FindMarkers(
+  seu, ident.1 = "Astrocytes", only.pos = TRUE,
+  min.pct = 0.25, logfc.threshold = 0.25, test.use = "wilcox"
+)
+astro_top30 <- head(markers_astro[order(markers_astro$avg_log2FC, decreasing = TRUE), ], 30)
+astro_top30_genes <- rownames(astro_top30)
+
+# 3️⃣ Oligos marker
+markers_oligo <- FindMarkers(
+  seu, ident.1 = "Oligos", only.pos = TRUE,
+  min.pct = 0.25, logfc.threshold = 0.25, test.use = "wilcox"
+)
+oligo_top30 <- head(markers_oligo[order(markers_oligo$avg_log2FC, decreasing = TRUE), ], 30)
+oligo_top30_genes <- rownames(oligo_top30)
+
+head(oligo_top30)
+
+neurons_top30_genes
