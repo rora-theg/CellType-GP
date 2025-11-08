@@ -57,7 +57,7 @@ def clean_obs_data(adata, drop_columns: list[str] = None):
 
 def compute_group_means(df: pd.DataFrame, spot_col: str, celltype_col: str,
                         suffix: str, ## 目标列后缀，自定义
-                        normalize_within_spot:bool = True
+                        normalize_within_spot:bool = False
                         ):
     """
     按 Visium barcode(spot_col) + broad_annotation(celltype_col) 分组，计算各 _score 列的平均值
@@ -84,17 +84,27 @@ def compute_group_means(df: pd.DataFrame, spot_col: str, celltype_col: str,
 
     print(f"🧩 检测到 {len(score_cols)} 个目标列（后缀 '{suffix}'）")
 
-    grouped_means = (
-        df.groupby([spot_col, celltype_col], observed=False)[score_cols]
-        .mean()
+    # # 分组求平均
+    # grouped_means = (
+    #     df.groupby([spot_col, celltype_col], observed=False)[score_cols]
+    #     .mean() 
+    #     .reset_index()
+    # )
+
+    # 分组求和
+    grouped_sum = (
+        df.groupby([spot_col, celltype_col],observed = False)[score_cols]
+        .sum()
         .reset_index()
     )
+
+    # 分组计数，在每个（spot,celltype）中，有多少个单细胞参与求和/求平均的计算
     grouped_counts = (
         df.groupby([spot_col, celltype_col], observed=False)
         .size()
         .reset_index(name='cell_count')
     )
-    truth_result = pd.merge(grouped_means, grouped_counts, on=[spot_col, celltype_col])
+    truth_result = pd.merge(grouped_sum, grouped_counts, on=[spot_col, celltype_col])
 
     # ✅ Spot 内归一化
     if normalize_within_spot:
@@ -141,7 +151,7 @@ def save_truth_outputs(df_clean: pd.DataFrame,
 
     print("💾 保存结果：")
     print(f"  ├─ 细胞级 truth_score：{path_score}")
-    print(f"  ├─ 分组均值 truth_result：{path_result}")
+    print(f"  ├─ 分组级 truth_result：{path_result}")
     print(f"  └─ 宽表 truth_result(wide)：{path_wide}")
 
 

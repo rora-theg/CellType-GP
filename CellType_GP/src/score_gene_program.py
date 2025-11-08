@@ -56,12 +56,24 @@ def score_gene_programs(
     output_dir.mkdir(exist_ok=True, parents=True)
 
     # ---- 准备矩阵 ----
-    if adata.raw is not None and hasattr(adata.raw, "X"):
+    if "counts" in adata.layers:
+        X = adata.layers["counts"]
+        var_names = adata.var_names
+        print("✅ 使用 layer['counts'] 作为输入矩阵")
+    elif "count" in adata.layers:
+        X = adata.layers["count"]
+        var_names = adata.var_names
+        print("✅ 使用 layer['count'] 作为输入矩阵")
+    elif adata.raw is not None and hasattr(adata.raw, "X"):
         X = adata.raw.X
         var_names = adata.raw.var_names
+        print("⚠️ 使用 adata.raw.X 作为输入矩阵（请确认是否为counts矩阵）")
     else:
         X = adata.X
         var_names = adata.var_names
+        print("⚠️ 使用 adata.X 作为输入矩阵（请确认是否为counts矩阵）")
+
+
     
     # 转成可操作矩阵
     if not isinstance(X, np.ndarray):
@@ -96,8 +108,11 @@ def score_gene_programs(
             print(f"❌ 跳过 {score_name}: 无有效基因。")
             continue
 
-        # ---- 计算平均得分 ----
-        scores = expr_df[existing_genes].mean(axis=1)
+        # # ---- 计算平均得分 ----
+        # scores = expr_df[existing_genes].mean(axis=1)
+
+        # ---- 计算一个单位的总得分 ----
+        scores = expr_df[existing_genes].sum(axis=1)
 
         # ---- 归一化 ----  (跨所有细胞[行]的归一化)
         if normalize:
